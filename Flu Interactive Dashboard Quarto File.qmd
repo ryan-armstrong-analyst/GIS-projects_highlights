@@ -1,0 +1,83 @@
+---
+title: "Flu Interactive Dashboard"
+format: html
+editor: visual
+---
+
+```{r}
+
+library(tidyverse)
+library(readxl)
+library(lubridate)
+library(cdcfluview)
+
+#install.packages("remotes")   # this is the package to pull from github
+#remotes::install_github("hrbrmstr/cdcfluview") #this actually pulls from github!
+
+
+#this is weekly activity for the fly data
+flu_data <- ili_weekly_activity_indicators()
+head(flu_data)
+
+
+flu_data <- flu_data %>%
+  mutate(weekend = as.Date(weekend)) %>%  # ensure proper Date
+  arrange(weekend) %>%
+  mutate(week_order = dense_rank(weekend)) #dense rank allows for "tied" dates to have the same values
+
+# whole function sorts chronologically, gives number system easy for dashboard to parse through later!
+
+#it starts in the 800s since it "starts" from 1970, but that doesnt affect the function later!!!
+
+```
+
+```{r}
+library(sf)
+library(tigris)
+
+options(tigris_use_cache = TRUE) # (saves into R cache)
+states_all <- states(cb = TRUE, resolution = "20m") # this pulls the state spatial data, it is in simpler borders (cb is true) so just for visualization, and resolution is the resolution of the simplified shapes! So it is pretty high
+
+#Filter by 2024/2025
+flu_data <- flu_data %>%
+  filter(season == "2024-25")
+
+length(unique(flu_data$statename)) # there are 55 of these, but only 52 states!! in our state polygon data!!
+
+setdiff(unique(flu_data$statename), states_all$NAME)
+
+flu_data <- flu_data %>%
+  filter(!statename %in% c("Commonwealth of the Northern Mariana Islands",
+                           "Virgin Islands",
+                           "New York City"))
+
+setdiff(unique(flu_data$statename), states_all$NAME)
+#should be character(0) now! Perfect!
+
+#THIS IS THE KEY PART
+
+#This joins the spatial data to the flu data so it is built in the data frame for each time point
+flu_geocode <- flu_data %>%
+  left_join(states_all, by = c("statename" = "NAME")) %>%
+  st_as_sf() #converts to spatial dataframe
+
+flu_geocode <- flu_geocode %>%
+  mutate(
+    weekend = as.Date(weekend, format = "%Y-%m-%d"),        # Ensure it's a Date
+    weekend_format = format(weekend, "%m/%d/%Y")          # Convert to mm/dd/yyyy
+  )
+
+```
+
+```{r}
+
+#you need to change file location!
+st_write(flu_geocode, 
+           "C:/Users/Owner/OneDrive - Westminster College/Desktop/Python Stuff/Flu Interactive Map/flu_data1.gpkg",
+         delete_dsn = TRUE) 
+#outputs the data into a geo package file. delete_dsn overrides the previous versions of this
+
+```
+
+```         
+```
